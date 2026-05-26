@@ -104,6 +104,7 @@ def predict_text(request: TextRequest):
             "prediction": "Unknown",
             "confidence": 0.0,
             "description": DISEASE_INFO["Unknown"]["description"],
+            "probabilities": {}
         }
 
     text = normalize_vi(raw)   
@@ -113,6 +114,13 @@ def predict_text(request: TextRequest):
     proba = model.predict_proba([text])[0]
     confidence = float(max(proba))
 
+    classes = model.classes_
+
+    # Convert sang dict
+    probabilities = {
+        cls: round(float(prob), 5)
+        for cls, prob in zip(classes, proba)
+    }
     if confidence < 0.20:
         prediction = "Unknown"
 
@@ -122,6 +130,7 @@ def predict_text(request: TextRequest):
         "prediction": prediction,
         "confidence": round(confidence, 4),
         "description": info["description"],
+        "probabilities": probabilities
     }
 
 @app.get("/health")
