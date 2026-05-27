@@ -1,8 +1,14 @@
 ﻿import re
+import os
 import pickle
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Model 1 - NLP Skin Disease Classification")
 
@@ -16,27 +22,33 @@ app.add_middleware(
 with open("model_nlp.pkl", "rb") as f:
     model = pickle.load(f)
 
-DISEASE_INFO = {
-    "Acne": {
-        "description": "Mụn trứng cá là tình trạng viêm da mãn tính xảy ra khi lỗ chân lông bị tắc nghẽn bởi dầu nhờn và tế bào da chết. Vi khuẩn Cutibacterium acnes phát triển gây viêm nhiễm. Bệnh thường gặp ở tuổi dậy thì nhưng có thể xảy ra ở mọi lứa tuổi. Biểu hiện gồm mụn đầu trắng, mụn đầu đen, mụn viêm đỏ và mụn bọc.",
-    },
-    "Tinea": {
-        "description": "Tinea là bệnh nhiễm nấm ngoài da do các loài nấm dermatophyte gây ra. Biểu hiện điển hình là vùng da ngứa, có hình tròn hoặc bầu dục với bờ rõ ràng, bong vảy. Bệnh lây qua tiếp xúc trực tiếp hoặc dùng chung đồ dùng cá nhân. Các thể phổ biến: hắc lào, nấm chân, nấm bẹn.",
-    },
-    "Keratosis": {
-        "description": "Keratosis là tình trạng da dày lên bất thường do tích tụ keratin. Seborrheic keratosis là dạng lành tính phổ biến, xuất hiện dưới dạng mảng nâu, vàng hoặc đen, bề mặt sần như sáp. Actinic keratosis do tia UV gây ra, biểu hiện là mảng da thô ráp, có vảy.",
-    },
-    "Nevus": {
-        "description": "Nevus là tình trạng tăng sinh sắc tố melanin tạo thành đốm hoặc nốt trên da. Thường lành tính, màu nâu đến đen, kích thước vài mm đến vài cm. Cần theo dõi theo nguyên tắc ABCDE: Asymmetry, Border, Color, Diameter, Evolution để phát hiện sớm nguy cơ.",
-    },
-    "Unknown": {
-        "description": "Hệ thống không đủ thông tin để xác định bệnh da liễu cụ thể. Vui lòng mô tả chi tiết hơn về triệu chứng hoặc tải ảnh lên để được phân tích chính xác hơn.",
-    },
+# ============================================================
+# DATABASE
+# ============================================================
 
-}
+DATABASE_URL = (
+    f"mysql+pymysql://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}"
+    f"@{os.getenv('MYSQL_HOST')}:{os.getenv('MYSQL_PORT')}/{os.getenv('MYSQL_DATABASE')}"
+    f"?ssl_verify_cert=false"
+)
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
+
+def get_description(disease_name: str) -> str:
+    db = SessionLocal()
+    try:
+        result = db.execute(
+            text("SELECT description FROM diseases WHERE disease_name = :name"),
+            {"name": disease_name}
+        ).fetchone()
+        return result[0] if result else "Không có mô tả"
+    except Exception:
+        return "Không có mô tả"
+    finally:
+        db.close()
 
 # ============================================================
-# PREPROCESSING — giống hệt train
+# PREPROCESSING
 # ============================================================
 
 ABBREVIATIONS = {
@@ -103,12 +115,12 @@ def predict_text(request: TextRequest):
         return {
             "prediction": "Unknown",
             "confidence": 0.0,
-            "description": DISEASE_INFO["Unknown"]["description"],
-            "probabilities": {}
+            "probabilities": {},
+            "description": get_description("Unknown")
         }
 
-    text = normalize_vi(raw)   
-    text = preprocess(text)    
+    text = normalize_vi(raw)
+    text = preprocess(text)
 
     prediction = model.predict([text])[0]
     proba = model.predict_proba([text])[0]
@@ -116,21 +128,21 @@ def predict_text(request: TextRequest):
 
     classes = model.classes_
 
-    # Convert sang dict
     probabilities = {
         cls: round(float(prob), 5)
         for cls, prob in zip(classes, proba)
     }
+
     if confidence < 0.20:
         prediction = "Unknown"
 
-    info = DISEASE_INFO[prediction]
+    description = get_description(prediction)
 
     return {
         "prediction": prediction,
         "confidence": round(confidence, 4),
-        "description": info["description"],
-        "probabilities": probabilities
+        "probabilities": probabilities,
+        "description": description
     }
 
 @app.get("/health")

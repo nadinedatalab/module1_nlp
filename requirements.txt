@@ -4,3 +4,6 @@ scikit-learn
 pandas
 openpyxl
 deep-translator
+sqlalchemy
+pymysql
+python-dotenv
