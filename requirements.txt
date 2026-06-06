@@ -1,9 +1,9 @@
 fastapi
 uvicorn
-scikit-learn
+scikit-learn==1.6.0
 pandas
 openpyxl
 deep-translator
-sqlalchemy
 pymysql
+sqlalchemy
 python-dotenv
