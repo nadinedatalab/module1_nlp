@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from deep_translator import GoogleTranslator
 
 load_dotenv()
 
@@ -72,6 +73,15 @@ def normalize_vi(text: str) -> str:
     words = [ABBREVIATIONS.get(w, w) for w in words]
     return " ".join(words)
 
+def translate_vi_to_en(text: str) -> str:
+    vi_chars = set("àáảãạăắặẳẵâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ")
+    if not any(c in vi_chars for c in text.lower()):
+        return text
+    try:
+        return GoogleTranslator(source="vi", target="en").translate(text)
+    except:
+        return text
+
 def handle_negation(text: str) -> str:
     words = text.lower().split()
     result = []
@@ -120,6 +130,7 @@ def predict_text(request: TextRequest):
         }
 
     text = normalize_vi(raw)
+    text = translate_vi_to_en(text)
     text = preprocess(text)
 
     proba = model.predict_proba([text])[0]
@@ -127,7 +138,6 @@ def predict_text(request: TextRequest):
     best_idx = proba.argmax()
     prediction = classes[best_idx]
     confidence = float(proba[best_idx])
-
 
     probabilities = {
         cls: round(float(prob), 5)
