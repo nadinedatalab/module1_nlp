@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-scikit-learn==1.6.0
+scikit-learn==1.8.0
 pandas
 openpyxl
 deep-translator
