@@ -122,11 +122,12 @@ def predict_text(request: TextRequest):
     text = normalize_vi(raw)
     text = preprocess(text)
 
-    prediction = model.predict([text])[0]
     proba = model.predict_proba([text])[0]
-    confidence = float(max(proba))
-
     classes = model.classes_
+    best_idx = proba.argmax()
+    prediction = classes[best_idx]
+    confidence = float(proba[best_idx])
+
 
     probabilities = {
         cls: round(float(prob), 5)
